@@ -123,9 +123,39 @@ testExpanded(myClass: true) // error, the compiler expects a MyClass instance.
 
 This attribute works by introducing new rules to argument-parameter matching in the compiler, and it places a few limitations on which parameters can be *next* to an `@expanded`.
 
+### Argument-parameter matching
+
+This is the process of pairing *parameters* of the function declaration with their respective *arguments*. It iterates on the declaration taking one parameter at a time and looking for an argument with the same label. At this point, only labels are relevant for matching — types are not part of the example.
+
+To illustrate that, let's look at how argument-parameter matching works for the function `test`.
+
+```swift
+class Example {
+  init(name: String, count: Int) { ... }
+  init(count: Int) { ... }
+}
+
+func test(first: Bool, second: @expanded Example, third: Int) { }
+test(first: true, name: "A", count: 2, third: 10)
+```
+
+The first iteration will take the `first` parameter and match it to the argument with the same label. 
+
+The second iteration is the one that matters for this example.
+
+It will take the `second` parameter and look for an argument with the same label, just like in the previous step. If it finds one, then this parameter will be treated as any other. Now, if it *doesn't* find it, we'll do some extra fun things since this is an `@expanded` parameter. 
+
+The compiler will first look at the label of the following parameter if there is one. In this case, the label is `third`. After that, we'll start taking the subsequent arguments that *don't match* the label of the next parameter and use them to build the "expanded initializer" call. We stop when we find an argument with a label that matches `third`.
+
+This way, `name` and `count` are the arguments that will end up being used for the expanded initializer. Using these arguments the compiler will select the appropriate `Example` initializer.  
+
+After properly matching `second`, we match the `third` parameter to its argument, and we're done.
+
+This is a simplification to convey *why* the parameter next to `@expanded` is so important. The limitations mentioned in the following sections are a consequence of that.
+
 ### Multiple expanded parameters
 
-API Authors can choose one, or many, parameters to allow expanding **in the same function. In the case of many expanded parameters, there's a limitation to be aware of: two expanded parameters aren't allowed to be next to each other.
+API Authors can choose one, or many, parameters to allow expanding in the same function. In the case of many expanded parameters, there's a limitation to be aware of: two expanded parameters aren't allowed to be next to each other.
 
 ```swift
 // not okay
@@ -180,12 +210,47 @@ func pet(a: @expanded Duck) { }
 pet(named: "Maria") // error
 
 ```
+### Subclassing
+
+The compiler expects arguments to build an initializer call of the parameter type. Therefore, subclassing doesn't work with this feature. 
+
+```swift
+class SuperClassy {
+  init(one: Bool, two: Int) {}
+}
+
+class SimpleClass: SuperClassy {
+  init(a: Int, b: Int) {}
+}
+
+func test(classy: @expanded SuperClassy) {}
+test(a: 10, b: 10) // error, "a" and "b" are arguments of the "SimpleClass" initializer. 
+```
 
 ### Protocols
 
-This feature can't be used with Protocols, even if the protocol has an initializer requirement. The compiler needs to know which concrete type to instantiate. 
+This feature can't be used with Protocols – even if the protocol has an initializer requirement. The compiler needs to know which concrete type to instantiate. 
+
+```swift
+protocol MyProtocol {
+  init(a: Int)
+}
+
+struct SimpleStruct: MyProtocol {
+	init(a: Int) {}
+}
+
+func test(x: @expanded MyProtocol) {}
+test(a: 10) // error
+```
+
+The example above would be the equivalent of trying to construct a protocol type `test(x: MyProtocol(a: 10))`.
 
 Generics aren't part of the scope at this moment.
+
+### Inout
+
+`inout` and `@expanded` cannot be used together since the expanded call constructs a new value, and `inout` relies on modifying an existing one.
 
 ## Impact on existing code
 
