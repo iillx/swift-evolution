@@ -131,8 +131,8 @@ To illustrate that, let's look at how argument-parameter matching works for the 
 
 ```swift
 class Example {
-  init(name: String, count: Int) { ... }
-  init(count: Int) { ... }
+  init(name: String, count: Int) { }
+  init(count: Int) { }
 }
 
 func test(first: Bool, second: @expanded Example, third: Int) { }
@@ -183,7 +183,7 @@ The `@expanded` parameter itself can have a default value.
 
 ```swift
 extension MyClass {
-  static func test() -> MyClass { // } 
+  static func test() -> MyClass { } 
 }
 
 func testExpanded(a: @expanded MyClass = .test()) { }
@@ -203,7 +203,7 @@ Access control works as usual for expanded parameters. If a certain initializer 
 ```swift
 public class Duck { 
   let named: String
-  private init(named: String) { // .. }
+  private init(named: String) { }
 }
 
 func pet(a: @expanded Duck) { }
