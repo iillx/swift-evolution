@@ -237,7 +237,7 @@ protocol MyProtocol {
 }
 
 struct SimpleStruct: MyProtocol {
-	init(a: Int) {}
+  init(a: Int) {}
 }
 
 func test(x: @expanded MyProtocol) {}
