@@ -263,3 +263,18 @@ This feature introduces the opportunity for a lot of APIs to be refactored. Addi
 Add support for enums to use `@expanded` parameters.
 
 
+### Optionals and failable initializers
+When dealing with optional expanded parameters, it's unclear whether the appropriate behavior is to build an initializer call to the `Wrapped` type or the `Optional` type itself. Therefore, this proposal doesn't support the following example.
+
+```swift
+class SimpleClass {
+  init?(a: Int) { }
+  init(a: Int, b: Int) { }
+}
+
+func test3(x: @expanded SimpleClass?) {}
+test3(a: 10) // error
+test3(a: 10, b: 20) // error
+```
+
+When given an optional type to an expanded parameter, the compiler will try to build the desugared type, `Optional<SimpleClass>`. In the future this behavior can be explored to allow unwrapping the optional.
