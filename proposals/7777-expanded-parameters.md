@@ -44,14 +44,14 @@ extension Gradient {
 }
 ```
 
-In that case, we might want to add the "equivalent" `linearGradient` overload method, to keep our API consistent. 
+In that case, we might want to add the equivalent `linearGradient` overload method to keep our API consistent. 
 
 ```swift
 // A linear gradient defined by a collection of materials.
 static func linearGradient(materials: [Material], startPoint: UnitPoint, endPoint: UnitPoint) -> LinearGradient
 ```
 
-Given this, the potential of an overload "explosion" is already a problem. But it gets worse considering that this pattern spreads out fairly quickly — now there's an entire family of gradients that could be updated. Radial, angular, and elliptical, all with their respective helper methods, would be good candidates for adding an overload with a materials parameter to support the new initializer.
+Given this, the potential of an overload "explosion" is already a problem. But it gets worse considering this pattern can spread out fairly quickly — now there's an entire family of gradients that could be updated. Radial, angular, and elliptical, all with their respective helper methods, would be good candidates for adding an overload with a materials parameter to support the new initializer.
 
 ```swift
 // A radial gradient.
@@ -189,13 +189,22 @@ extension MyClass {
 func testExpanded(a: @expanded MyClass = .test()) { }
 ```
 
+## Unlabeled arguments
+Initializers need to have at least one parameter with a label to work with the expanded feature. Inits with a single unlabeled parameter aren't allowed. 
+
+```swift
+class C {
+  init(_ a: Int) { } // not allowed
+}
+```
+
 ### Nominal types
 
 Since `@expanded` expands an argument into its initializer call, it can only be used with types that can have initializers. The compiler will enforce it by checking if the type to which this attribute is attached is a Nominal Type (aka a type with a name, not a structural type). 
 
 ```swift
-func testExpanded(a: @expanded () -> Bool) {} // not allowed
-func testExpanded(a: @expanded (Bool, Bool)) {} // not allowed
+func testExpanded(a: @expanded () -> Bool) {} // error
+func testExpanded(a: @expanded (Bool, Bool)) {} // error
 ```
 
 Access control works as usual for expanded parameters. If a certain initializer isn't visible from the call site of the expanded method, it can't be used. 
@@ -210,6 +219,7 @@ func pet(a: @expanded Duck) { }
 pet(named: "Maria") // error
 
 ```
+
 ### Subclassing
 
 The compiler expects arguments to build an initializer call of the parameter type. Therefore, subclassing doesn't work with this feature. 
@@ -264,7 +274,7 @@ Add support for enums to use `@expanded` parameters.
 
 
 ### Optionals and failable initializers
-When dealing with optional expanded parameters, it's unclear whether the appropriate behavior is to build an initializer call to the `Wrapped` type or the `Optional` type itself. Therefore, this proposal doesn't support the following example.
+When dealing with optional expanded parameters, it's unclear whether the appropriate behavior is to build an initializer call to the `Wrapped` type or the `Optional` type itself. Therefore when an optional type is given to an expanded parameter, the compiler will try to build the desugared type.
 
 ```swift
 class SimpleClass {
@@ -277,4 +287,4 @@ test3(a: 10) // error
 test3(a: 10, b: 20) // error
 ```
 
-When given an optional type to an expanded parameter, the compiler will try to build the desugared type, `Optional<SimpleClass>`. In the future this behavior can be explored to allow unwrapping the optional.
+In the example above the compiler will try to build `Optional<SimpleClass>`. In the future this behavior can be explored to allow unwrapping the optional.
