@@ -141,9 +141,7 @@ test(first: true, name: "A", count: 2, third: 10)
 
 The first iteration will take the `first` parameter and match it to the argument with the same label. 
 
-The second iteration is the one that matters for this example.
-
-It will take the `second` parameter and look for an argument with the same label, just like in the previous step. If it finds one, then this parameter will be treated as any other. Now, if it *doesn't* find it, we'll do some extra fun things since this is an `@expanded` parameter. 
+The second iteration is the one that matters for this example. It will take the `second` parameter and look for an argument with the same label, just like in the previous step. If it finds one, then this parameter will be treated as any other. Now, if it *doesn't* find it, we'll do some extra fun things since this is an `@expanded` parameter. 
 
 The compiler will first look at the label of the following parameter if there is one. In this case, the label is `third`. After that, we'll start taking the subsequent arguments that *don't match* the label of the next parameter and use them to build the "expanded initializer" call. We stop when we find an argument with a label that matches `third`.
 
@@ -189,13 +187,28 @@ extension MyClass {
 func testExpanded(a: @expanded MyClass = .test()) { }
 ```
 
-## Unlabeled arguments
+### Limitations on the initializers that can work with @expanded
+• **Unlabeled arguments**  
 Initializers need to have at least one parameter with a label to work with the expanded feature. Inits with a single unlabeled parameter aren't allowed. 
 
 ```swift
 class C {
   init(_ a: Int) { } // not allowed
 }
+```
+
+• **Trailing closures**  
+When a given expanded type has initializers with closures, the trailing closure syntax can't be used. The expanded expression is limited by the bounds of the "original" parenthesis. 
+```swift
+class FancyClass {
+  init(a: Int, _ b: () -> Void) { }
+}
+
+func test(one: @expanded FancyClass) {}
+test(a: 7, { print("🦆") })  // okay
+
+func testAgain(one: @expanded FancyClass, two: Bool) {} 
+testAgain(a: 7, { print("🦆") }, two: true) // okay
 ```
 
 ### Nominal types
@@ -288,3 +301,20 @@ test3(a: 10, b: 20) // error
 ```
 
 In the example above the compiler will try to build `Optional<SimpleClass>`. In the future this behavior can be explored to allow unwrapping the optional.
+
+### Expanded trailing closures
+In the future, this feature could be _expanded_ (🥱) to allow trailing closure syntax to be used when the expanded parameter is the last one.
+
+```swift
+class FancyClass {
+  init(a: Int, _ b: () -> Void) { }
+}
+
+func test(one: @expanded FancyClass) {} // trailing closure syntax allowed
+test(a: 7) { 
+  print("🦆") 
+ }
+
+func testAgain(one: @expanded FancyClass, two: Bool) {} // not allowed
+testAgain(a: 7, { print("🦆") }, two: true) 
+```
