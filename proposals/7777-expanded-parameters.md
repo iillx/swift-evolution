@@ -139,17 +139,29 @@ func test(first: Bool, second: @expanded Example, third: Int) { }
 test(first: true, name: "A", count: 2, third: 10)
 ```
 
-The first iteration will take the `first` parameter and match it to the argument with the same label. 
+The first iteration will take the 'first' parameter and match it to the argument with the same label. 
 
-The second iteration is the one that matters for this example. It will take the `second` parameter and look for an argument with the same label, just like in the previous step. If it finds one, then this parameter will be treated as any other. Now, if it *doesn't* find it, we'll do some extra fun things since this is an `@expanded` parameter. 
+The second iteration is the one that matters for this example. It will take the 'second' parameter and look for an argument with the same label, just like in the previous step. If it finds one, then this parameter will be treated as any other. Now, if it *doesn't* find it, we'll do some extra fun things since this is an `@expanded` parameter. 
 
-The compiler will first look at the label of the following parameter if there is one. In this case, the label is `third`. After that, we'll start taking the subsequent arguments that *don't match* the label of the next parameter and use them to build the "expanded initializer" call. We stop when we find an argument with a label that matches `third`.
+The compiler will first look at the label of the following parameter if there is one. In this case, the label is 'third'. After that, we'll start taking the subsequent arguments that *don't match* the label of the next parameter and use them to build the "expanded initializer" call. We stop when we find an argument with a label that matches 'third'.
 
-This way, `name` and `count` are the arguments that will end up being used for the expanded initializer. Using these arguments the compiler will select the appropriate `Example` initializer.  
+This way, 'name' and 'count' are the arguments that will end up being used for the expanded initializer. Using these arguments the compiler will select the appropriate `Example` init.  
 
-After properly matching `second`, we match the `third` parameter to its argument, and we're done.
+After properly matching 'second', we match the 'third' parameter to its argument, and we're done.
 
 This is a simplification to convey *why* the parameter next to `@expanded` is so important. The limitations mentioned in the following sections are a consequence of that.
+
+### Repeated parameter labels
+When a label appears in an initializer of the expanded type and the function with the expanded parameter, the rules described above may lead to rather unexpected behavior. So in the following example, even though the arguments at call site _seem_ right, the compiler won't collect the 'emoji' argument for the expanded call, since its label matches the parameter next to `@expanded`. 
+
+```swift
+struct Pastry {
+  init(named: String, emoji: String) {}
+}
+
+func bake(pastry: @expanded Pastry, emoji: String) {}
+bake(named: "pain au chocolat", emoji: "🥐+🍫", emoji: "🤨")
+```
 
 ### Multiple expanded parameters
 
@@ -188,7 +200,7 @@ func testExpanded(a: @expanded MyClass = .test()) { }
 ```
 
 ### Limitations on the initializers that can work with @expanded
-• **Unlabeled arguments**  
+• **Initializers with unlabeled arguments**  
 Initializers need to have at least one parameter with a label to work with the expanded feature. Inits with a single unlabeled parameter aren't allowed. 
 
 ```swift
@@ -197,7 +209,7 @@ class C {
 }
 ```
 
-• **Trailing closures**  
+• **Initializers with trailing closures**  
 When a given expanded type has initializers with closures, the trailing closure syntax can't be used. The expanded expression is limited by the bounds of the "original" parenthesis. 
 ```swift
 class FancyClass {
