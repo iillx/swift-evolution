@@ -99,7 +99,7 @@ let myGradient = Gradient(colors: [.yellow, .teal])
 linearGradient(myGradient, startPoint: 0.1, endPoint: 0.5)
 ```
 
-### Detailed design
+## Detailed design
 
 `@expanded` (bike-shedding is welcome here) is a Type Attribute and can be used in functions and subscripts parameters. This allows API authors to be in control of which parameters would support this functionality at the call site. 
 
