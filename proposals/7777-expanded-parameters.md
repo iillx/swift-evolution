@@ -106,19 +106,19 @@ linearGradient(myGradient, startPoint: 0.1, endPoint: 0.5)
 When given arguments with labels that don't match the original one, the compiler will use overload resolution to select an initializer. 
 
 ```swift
-class MyClass {
+class Pastry {
   init(a: String) { print("initializer A chosen") }
   init(b: Bool) { print("initializer B chosen" }
 }
 
-func testExpanded(myClass: @expanded MyClass) {  }
-testExpanded(a: "hello!") // prints initializer A chosen
+func bake(pastry: @expanded Pastry) {  }
+bake(a: "cake") // prints initializer A chosen
 
-extension MyClass {
-  init(myClass: Bool) { print("initializer C chosen") }
+extension Pastry {
+  init(pastry: Bool) { print("initializer C chosen") }
 }
 
-testExpanded(myClass: true) // error, the compiler expects a MyClass instance.
+bake(pastry: true) // error, the compiler expects a Pastry instance.
 ```
 
 This attribute works by introducing new rules to argument-parameter matching in the compiler, and it places a few limitations on which parameters can be *next* to an `@expanded`.
