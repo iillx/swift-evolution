@@ -99,6 +99,36 @@ let myGradient = Gradient(colors: [.yellow, .teal])
 linearGradient(myGradient, startPoint: 0.1, endPoint: 0.5)
 ```
 
+Expanded parameters can also benefit non-public-API code. Functions with long and repeated parameter lists are often refactored to replace those parameters with a single struct containing all of them, as described by this objc.io [post](https://www.objc.io/blog/2018/05/01/extracting-parameters/). The call-site of these methods makes use of the memberwise initializers structs get. Simplifying the snippets from that post, we have: 
+
+```swift
+struct Context {
+    let state: SomeState
+    let pushViewController: (UIViewController) -> ()
+}
+
+func hotspotForm(_ context: Context) {
+  // ...
+}
+
+// at call site
+hotspotForm(
+  .init(
+    state: SomeState(),
+    pushViewController: { //... } 
+  )
+)
+```
+
+This approach relies on the generated `Context` initializer and could benefit from `@expanded`, making the `.init` unnecessary. 
+
+```swift
+func hotspotForm(_ context: @expanded Context) { }
+hotspotForm(state: SomeState(), pushViewController: { // ... })
+```
+
+Another way to get around the `.init` is to manually define a `hotspotForm` overload that takes the parameters directly and forwards them to the initializer. However, maintaining this boilerplate in sync with the struct as it adds/removes properties is error-prone and undermines the benefit of the memberwise init. If instead we rely on `@expanded`, we get both benefits: omitting the `.init` part of the call and no boilerplate. 
+
 ## Detailed design
 
 `@expanded` (bike-shedding is welcome here) is a Type Attribute and can be used in functions and subscripts parameters. This allows API authors to be in control of which parameters would support this functionality at the call site. 
@@ -329,4 +359,14 @@ test(a: 7) {
 
 func testAgain(one: @expanded FancyClass, two: Bool) {} // not allowed
 testAgain(a: 7, { print("🦆") }, two: true) 
+```
+
+### Closures
+Closures could make use of `@expanded` parameters as well, with the same rules and restrictions described previously applying to them. 
+```swift
+struct Example {
+  static let plot: (@expanded CGPoint) -> Void = { // ... }
+}
+
+Example.plot(x: 42, y: 42)
 ```
