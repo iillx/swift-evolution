@@ -34,7 +34,7 @@ static func linearGradient(stops: [Gradient.Stop], startPoint: UnitPoint, endPoi
 
 This API has one "original" function that takes a `Gradient` directly, and two "convenience" overloads for each way a `Gradient` can be created. 
 
-*I don't know how these are actually implemented inside SwiftUI, but for this proposal let's assume these methods will create a `Gradient` somewhere down the line and apply it to a shape, with only the initialization method for the Gradient value differing between them.* 
+*I don't know how these are actually implemented inside SwiftUI, but for this proposal let's assume these methods will create a `Gradient` somewhere down the line and apply it to a shape, with only the initialization method for the `Gradient` value differing between them.* 
 
 So what if we were to add a third initializer to `Gradient`? 
 
@@ -51,7 +51,7 @@ In that case, we might want to add the equivalent `linearGradient` overload meth
 static func linearGradient(materials: [Material], startPoint: UnitPoint, endPoint: UnitPoint) -> LinearGradient
 ```
 
-Given this, the potential of an overload "explosion" is already a problem. But it gets worse considering this pattern can spread out fairly quickly — now there's an entire family of gradients that could be updated. Radial, angular, and elliptical, all with their respective helper methods, would be good candidates for adding an overload with a materials parameter to support the new initializer.
+Given this, the potential of an overload "explosion" is already a problem. But it gets worse considering this pattern can spread out fairly quickly — now there's an entire family of gradients that could be updated. Radial, angular, and elliptical, all with their respective helper methods, would be good candidates for adding an overload with a `materials` parameter to support the new initializer.
 
 ```swift
 // A radial gradient.
@@ -99,7 +99,7 @@ let myGradient = Gradient(colors: [.yellow, .teal])
 linearGradient(myGradient, startPoint: 0.1, endPoint: 0.5)
 ```
 
-Expanded parameters can also benefit non-public-API code. Functions with long and repeated parameter lists are often refactored to replace those parameters with a single struct containing all of them, as described by this objc.io [post](https://www.objc.io/blog/2018/05/01/extracting-parameters/). The call-site of these methods makes use of the memberwise initializers structs get. Simplifying the snippets from that post, we have: 
+Expanded parameters can also benefit non-public-API code. Functions with long and repeated parameter lists are often refactored to replace those parameters with a single struct containing all of them, as described by this objc.io [post](https://www.objc.io/blog/2018/05/01/extracting-parameters/). The call-site of these methods uses the memberwise initializers structs get. Simplifying the snippets from that post, we have: 
 
 ```swift
 struct Context {
@@ -127,11 +127,24 @@ func hotspotForm(_ context: @expanded Context) { }
 hotspotForm(state: SomeState(), pushViewController: { // ... })
 ```
 
-Another way to get around the `.init` is to manually define a `hotspotForm` overload that takes the parameters directly and forwards them to the initializer. However, maintaining this boilerplate in sync with the struct as it adds/removes properties is error-prone and undermines the benefit of the memberwise init. If instead we rely on `@expanded`, we get both benefits: omitting the `.init` part of the call and no boilerplate. 
+Another way to get around the `.init` is to manually define a `hotspotForm` overload that takes the parameters directly and forwards them to the initializer. However, maintaining this boilerplate in sync with the struct as it adds/removes properties is error-prone and undermines the benefit of the memberwise init. If instead we rely on `@expanded`, we get both benefits: omitting the `.init` part of the call and no boilerplate to maintain. 
 
 ## Detailed design
 
-`@expanded` (bike-shedding is welcome here) is a Type Attribute and can be used in functions and subscripts parameters. This allows API authors to be in control of which parameters would support this functionality at the call site. 
+`@expanded` (bike-shedding is welcome here) is a Type Attribute and can be used in functions, closures, and subscripts parameters. It allows API authors to be in control of which parameters would support this functionality at the call site. 
+
+This feature can help create APIs with fewer overloads and thus make code easier to navigate, comprehend and evolve. Therefore, a function with an `@expanded` parameter can't have overloads. To prevent this abstraction from causing unpredictable behavior at the call site, only a single expanded parameter is allowed, and it must be the first one on the parameter list. 
+
+```swift
+// not allowed
+func testExpanded(myClass: @expanded MyClass, myClass2: @expanded MyClass) { }
+
+// not allowed
+func testExpanded(c: Int, myClass: @expanded MyClass) { }
+
+// ok 
+func testExpanded(myClass: @expanded MyClass, c: Int) { }
+```
 
 When given arguments with labels that don't match the original one, the compiler will use overload resolution to select an initializer. 
 
@@ -165,46 +178,19 @@ class Example {
   init(count: Int) { }
 }
 
-func test(first: Bool, second: @expanded Example, third: Int) { }
-test(first: true, name: "A", count: 2, third: 10)
+func test(first: @expanded Example, second: Int) { }
+test(name: "A", count: 2, second: 10)
 ```
 
-The first iteration will take the 'first' parameter and match it to the argument with the same label. 
+The first iteration is the one that matters for this example. It will take the 'first' parameter and look for an argument with the same label, just like it would for a normal parameter. If it finds one, then this parameter won't be expanded. Now, if it *doesn't* find it, we'll do some extra fun things since this is an `@expanded` parameter. 
 
-The second iteration is the one that matters for this example. It will take the 'second' parameter and look for an argument with the same label, just like in the previous step. If it finds one, then this parameter will be treated as any other. Now, if it *doesn't* find it, we'll do some extra fun things since this is an `@expanded` parameter. 
-
-The compiler will first look at the label of the following parameter if there is one. In this case, the label is 'third'. After that, we'll start taking the subsequent arguments that *don't match* the label of the next parameter and use them to build the "expanded initializer" call. We stop when we find an argument with a label that matches 'third'.
+The compiler will first look at the label of the following parameter if there is one. In this case, the label is 'second'. After that, we'll start taking the subsequent arguments that *don't match* the label of the next parameter and use them to build the "expanded initializer" call. We stop when we find an argument with a label that matches 'second'.
 
 This way, 'name' and 'count' are the arguments that will end up being used for the expanded initializer. Using these arguments the compiler will select the appropriate `Example` init.  
 
-After properly matching 'second', we match the 'third' parameter to its argument, and we're done.
+After properly matching 'first', we match the 'second' parameter to its argument, and we're done.
 
 This is a simplification to convey *why* the parameter next to `@expanded` is so important. The limitations mentioned in the following sections are a consequence of that.
-
-### Repeated parameter labels
-When a label appears in an initializer of the expanded type and the function with the expanded parameter, the rules described above may lead to rather unexpected behavior. So in the following example, even though the arguments at call site _seem_ right, the compiler won't collect the 'emoji' argument for the expanded call, since its label matches the parameter next to `@expanded`. 
-
-```swift
-struct Pastry {
-  init(named: String, emoji: String) {}
-}
-
-func bake(pastry: @expanded Pastry, emoji: String) {}
-bake(named: "pain au chocolat", emoji: "🥐+🍫", emoji: "🤨")
-```
-
-### Multiple expanded parameters
-
-API Authors can choose one, or many, parameters to allow expanding in the same function. In the case of many expanded parameters, there's a limitation to be aware of: two expanded parameters aren't allowed to be next to each other.
-
-```swift
-// not okay
-func testExpanded(myClass: @expanded MyClass, myClass2: @expanded MyClass) { }
-
-// okay
-func testExpanded(myClass: @expanded MyClass, c: Int, myClass2: @expanded MyClass) { }
-
-```
 
 ### Default arguments
 
@@ -215,7 +201,6 @@ func testExpanded(myClass: @expanded MyClass, c: Int, myClass2: @expanded MyClas
 func testExpanded(myClass: @expanded MyClass, b: Int = 10, c: Bool) { }
 
 // okay
-func testExpanded(c: Bool, myClass: @expanded MyClass, b: Int = 10) { }
 func testExpanded(myClass: @expanded MyClass, c: Bool, b: Int = 10) { }
 ```
 
@@ -229,15 +214,18 @@ extension MyClass {
 func testExpanded(a: @expanded MyClass = .test()) { }
 ```
 
-### Limitations on the initializers that can work with @expanded
-• **Initializers with unlabeled arguments**  
-Initializers need to have at least one parameter with a label to work with the expanded feature. Inits with a single unlabeled parameter aren't allowed. 
-
+### Closures
+Closures can make use of `@expanded` parameters as well, with the same rules applying to them. 
 ```swift
-class C {
-  init(_ a: Int) { } // not allowed
+struct Example {
+  static let plot: (@expanded CGPoint) -> Void = { // ... }
 }
+
+Example.plot(x: 42, y: 42)
 ```
+
+### Initializers
+Only initializers available at the function _declaration_ can be used with `@expanded`, excluding inits defined outside of the module.
 
 • **Initializers with trailing closures**  
 When a given expanded type has initializers with closures, the trailing closure syntax can't be used. The expanded expression is limited by the bounds of the "original" parenthesis. 
@@ -260,19 +248,6 @@ Since `@expanded` expands an argument into its initializer call, it can only be 
 ```swift
 func testExpanded(a: @expanded () -> Bool) {} // error
 func testExpanded(a: @expanded (Bool, Bool)) {} // error
-```
-
-Access control works as usual for expanded parameters. If a certain initializer isn't visible from the call site of the expanded method, it can't be used. 
-
-```swift
-public class Duck { 
-  let named: String
-  private init(named: String) { }
-}
-
-func pet(a: @expanded Duck) { }
-pet(named: "Maria") // error
-
 ```
 
 ### Subclassing
@@ -310,8 +285,6 @@ test(a: 10) // error
 ```
 
 The example above would be the equivalent of trying to construct a protocol type `test(x: MyProtocol(a: 10))`.
-
-Generics aren't part of the scope at this moment.
 
 ### Inout
 
@@ -359,14 +332,4 @@ test(a: 7) {
 
 func testAgain(one: @expanded FancyClass, two: Bool) {} // not allowed
 testAgain(a: 7, { print("🦆") }, two: true) 
-```
-
-### Closures
-Closures could make use of `@expanded` parameters as well, with the same rules and restrictions described previously applying to them. 
-```swift
-struct Example {
-  static let plot: (@expanded CGPoint) -> Void = { // ... }
-}
-
-Example.plot(x: 42, y: 42)
 ```
